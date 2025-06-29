@@ -1,0 +1,56 @@
+Version: 0.2.0
+
+### 🔄 [2024-06-27] CLI & Log Export Enhancements
+
+- 🧾 `blackbox.py`: Modularized log writing; now supports both markdown and JSON export. All logs are written with UTF-8 encoding for emoji and special character compatibility on all platforms.
+  _Effect: No more UnicodeEncodeError on Windows; logs can include emojis and non-ASCII characters._
+- 🖥️ `flight_sim_engine.py`: Added `--ticker`, `--date`, and `--log-format` CLI arguments for flexible simulation and log output. Output file extension now matches the selected format.
+  _Effect: Users can simulate any ticker/date and choose between markdown or JSON logs from the command line._
+- 📚 `README.md`: Updated documentation to reflect new CLI options, log formats, and Unicode compatibility.
+
+---
+
+**Output Cues:**
+- Example: `python flight_sim_engine.py --ticker NVDA --mode intraday --date 2024-06-20 --log-format json` now produces a valid JSON log with emoji support.
+- Example: No more UnicodeEncodeError when writing logs with emojis on Windows.
+
+---
+
+**Next:**  
+- Modularize `blackbox.py` further to support additional export formats if needed.
+- Add more CLI options for advanced simulation control.
+
+**Ref:** <#roadmap or issue-id>
+
+---
+
+Version: 0.2.1
+
+### 🔄 [2024-06-27] Module Logic Updates
+
+- ✈️ `turbulence_sensor.py`: Combines IV delta and candle shape to classify turbulence more realistically (`Calm`, `Moderate`, `Heavy`).  
+  _Effect: Turbulence rating for 06/27 now reads Heavy due to IV ramp + doji pattern._
+- 🪂 `stall_detector.py`: Flags EMA drag, IV spikes, and upper wick drag in uptrends for better stall detection.  
+  _Effect: New stall logic now correctly flags 06/25/2025 candle as "Stall" instead of "Thrust"._
+- 🧠 `flight_sim_engine.py`: Integrated verbose mode, plugged in new stall/turbulence logic for easier debugging and validation.
+- 📜 Created this log file to track iterative development.
+
+### 📝 [2024-06-27] Documentation Update
+
+- 📚 `README.md`: Added a section explaining the meaning of each candle phase (Thrust, Go-around, Hover, Stall) as used in the simulation logs. This helps users interpret the log output and understand the market metaphors.
+
+### 🛠️ [2025-06-29] Major Refactor & Workflow Improvements
+
+- 🗂️ All core simulation logic moved to `modular/core/` for better organization and maintainability.
+- 🚪 Introduced `modular/entry.py` as the single entry point for running simulations. All CLI arguments are now passed through entry.py.
+- 📁 All log output is now saved to `modular/logs/` for a clean and consistent workspace.
+- 🔄 Refactored `flight_sim_engine.py` for strict mode consistency: daily and intraday logic and outputs are now fully separated.
+- 📝 Updated README to reflect the new structure, usage, and removed obsolete instructions.
+
+---
+
+**Next:**
+- Further modularize reporting and utility scripts.
+- Add more advanced CLI options and batch processing support.
+
+**Ref:** <#modularization, #entry-point, #logs-directory, #mode-consistency>
