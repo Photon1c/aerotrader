@@ -1,17 +1,17 @@
 Per GPT Deep Research:
-🛫 U.S. Daily Flights Spectrum by FAA Region and Flight Type
+### 🛫 U.S. Daily Flights Spectrum by FAA Region and Flight Type
 
-FAA Region	Commercial	General Aviation	Air Taxi	Military	Cargo	Total Flights
-
-Alaskan	300	1,500	500	150	50	~2,500
-Central	2,100	2,800	1,400	600	300	~7,200
-Eastern	4,800	3,600	2,000	400	600	~11,400
-Great Lakes	3,600	4,500	1,800	400	500	~10,800
-New England	1,800	1,200	600	100	200	~3,900
-Northwest Mtn.	2,900	3,000	1,500	300	400	~8,100
-Southern	5,100	4,900	2,300	600	800	~13,700
-Southwest	3,400	3,200	1,900	700	700	~9,900
-Western-Pacific	3,000	2,500	1,500	1,000	600	~8,600
-Headquarters (DC)	500	200	100	100	100	~1,000
-GUAM/HI (Pacific)	400	600	200	200	100	~1,500
-🟢 TOTAL	28,900	33,000	13,800	4,550	4,350	~86,600
+| FAA Region         | Commercial | General Aviation | Air Taxi | Military | Cargo | **Total Flights** |
+|-------------------|------------|------------------|----------|----------|-------|-------------------|
+| **Alaskan**        | 300        | 1,500            | 500      | 150      | 50    | ~2,500            |
+| **Central**        | 2,100      | 2,800            | 1,400    | 600      | 300   | ~7,200            |
+| **Eastern**        | 4,800      | 3,600            | 2,000    | 400      | 600   | ~11,400           |
+| **Great Lakes**    | 3,600      | 4,500            | 1,800    | 400      | 500   | ~10,800           |
+| **New England**    | 1,800      | 1,200            | 600      | 100      | 200   | ~3,900            |
+| **Northwest Mtn.** | 2,900      | 3,000            | 1,500    | 300      | 400   | ~8,100            |
+| **Southern**       | 5,100      | 4,900            | 2,300    | 600      | 800   | ~13,700           |
+| **Southwest**      | 3,400      | 3,200            | 1,900    | 700      | 700   | ~9,900            |
+| **Western-Pacific**| 3,000      | 2,500            | 1,500    | 1,000    | 600   | ~8,600            |
+| **Headquarters (DC)**| 500     | 200              | 100      | 100      | 100   | ~1,000            |
+| **GUAM/HI (Pacific)**| 400     | 600              | 200      | 200      | 100   | ~1,500            |
+| **🟢 TOTAL**         | **28,900** | **33,000**       | **13,800**| **4,550**| **4,350**| **~86,600**         |
