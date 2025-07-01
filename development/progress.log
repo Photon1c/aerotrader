@@ -54,3 +54,57 @@ Version: 0.2.1
 - Add more advanced CLI options and batch processing support.
 
 **Ref:** <#modularization, #entry-point, #logs-directory, #mode-consistency>
+
+Version: 0.3.0
+
+### 🔄 [2024-06-29] FlightOps Orchestrator Scaffold & Simulation Refinement Suggestions
+
+- 🧩 `flight_ops_core.py`: Scaffolded a unified orchestrator for market, aircraft, and traffic simulation domains. Introduced the `FlightState` dataclass and `FlightOpsCore` class, with mock logic for each domain and a runnable test harness.
+  _Effect: Enables multi-domain simulation with a shared state schema, providing a foundation for future integration and experimentation._
+- 🧪 `flight_ops_core.py`: Added a minimal test run with 2–3 flights (one per domain) and simple oscillating/linear logic for each.
+  _Effect: Demonstrates the orchestrator's update loop and state transitions for each domain._
+
+---
+
+**Output Cues:**
+- Example: Initial test run prints each flight's state per tick, showing market price oscillation, aircraft climb, and traffic taxiing.
+- Example: All status flags remain `False` with current logic; no stalls or turbulence are triggered.
+
+---
+
+**Next:**  
+- Refine domain logic for realism (e.g., random walk for market, full flight phases, traffic congestion).
+- Add interactions between domains (e.g., market stall triggers flight stall).
+- Improve output: log to file, add telemetry/history, and visualize results.
+- Parameterize simulation (tick count, randomness, initial conditions).
+- Expand status flags and event tracking for richer simulation.
+
+**Ref:** <#flight-ops-orchestrator, #simulation-refinement, #output-improvements>
+
+Version: 0.3.1
+
+### 🔄 [2024-06-29] Cross-Domain Triggers & Telemetry Buffer
+
+- 🔗 `flight_ops_core.py`: Added cross-domain event triggers: market stall triggers aircraft stall, traffic go-around triggers aircraft holding, and aircraft holding triggers traffic cleared-to-land.
+  _Effect: Simulation domains now interact, making the sim more dynamic and realistic._
+- 🕒 `flight_ops_core.py`: Each flight now tracks a rolling telemetry/history buffer (last 10 ticks) for time-series analysis and visualization.
+  _Effect: Enables replay, plotting, and advanced analytics for each flight._
+- 🎲 `flight_ops_core.py`: Market logic now allows price to drop below 100, making market stall events possible in normal runs.
+  _Effect: All cross-domain triggers can be observed in a typical simulation._
+
+---
+
+**Output Cues:**
+- Example: `[TRIGGER] Market flight MKT_SPY is stalled. Aircraft AC001 set to stall.`
+- Example: `[TRIGGER] Traffic flight TRF_PNW_1 in GoAround. Aircraft AC001 set to Holding phase.`
+- Example: `[TRIGGER] Aircraft AC001 held >2 ticks. Traffic TRF_PNW_1 set to ClearedToLand.`
+- Example: Each flight's `telemetry` field contains a rolling history of its recent states.
+
+---
+
+**Next:**  
+- Visualize telemetry/history for each flight (e.g., with matplotlib or a dashboard).
+- Add more complex or scenario-based cross-domain triggers.
+- Parameterize trigger logic for research and experimentation.
+
+**Ref:** <#cross-domain-triggers, #telemetry-buffer, #simulation-dynamics>

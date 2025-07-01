@@ -5,6 +5,7 @@ Welcome to the Aerotrader Flight Pricing Simulator project! This repository prov
 ## Project Overview
 
 - **Modular Engine (`modular/`)**: The main, production-ready simulation engine. Highly modular, with each component (data loading, turbulence, stall detection, etc.) separated for clarity and extensibility. Use this for robust research, backtesting, and advanced experimentation.
+- **FlightOps Orchestrator (`modular/core/flight_ops_core.py`)**: The unified orchestrator that manages cross-domain simulation, event triggers, and state synchronization between market, aircraft, and traffic domains. Enables advanced multi-agent and event-driven simulation scenarios.
 - **Standalone Scripts (`standalone/`)**: Experimental and legacy versions of the engine. These scripts are ideal for rapid prototyping, learning, and exploring different approaches to flight-based market simulation. Each version demonstrates a different stage of development or feature set.
 
 ## Key Features
@@ -13,6 +14,9 @@ Welcome to the Aerotrader Flight Pricing Simulator project! This repository prov
 - Outputs detailed markdown and JSON logs, including flight summaries and telemetry tables.
 - Generates printable reports with plots and candle phase tables.
 - Modular design for easy extension and experimentation.
+- - Unified event-driven simulation via `flight_ops_core.py` for research-grade multi-domain modeling.
+- Cross-domain event triggers: market, aircraft, and traffic domains can now influence each other (e.g., market stall triggers aircraft stall, traffic go-around triggers aircraft holding, holding triggers cleared-to-land).
+- Each flight tracks a rolling telemetry/history buffer for time-series analysis and visualization.
 
 ## Directory Structure
 - `modular/` — Main modular engine, entry point, logs, and documentation
@@ -30,22 +34,18 @@ python modular/entry.py [--mode daily|intraday] [--ticker TICKER] [--date YYYY-M
 ```
 Logs are saved to `modular/logs/`.
 
+#### Cross-Domain Event Triggers
+The simulation now supports cross-domain triggers:
+- If a market flight enters stall, the corresponding aircraft is also set to stall.
+- If a traffic flight enters a 'GoAround' phase, the corresponding aircraft is set to 'Holding'.
+- If an aircraft remains in 'Holding' for more than 2 ticks, the corresponding traffic flight is set to 'ClearedToLand'.
+
+#### Telemetry/History Buffer
+Each flight object maintains a rolling buffer of its last 10 states (altitude, velocity, phase, status flags, price), enabling time-series analysis and visualization.
+
 ### Running Standalone Scripts
 Navigate to the `standalone/` directory and run any of the `flight_sim_enginevX.py` scripts directly:
 ```bash
 python standalone/flight_sim_enginev3.py
 ```
-Logs are saved to `standalone/logs/`.
-
-## Documentation
-- See `modular/README.md` for detailed documentation of the modular engine and its modules.
-- See `standalone/README.md` for descriptions of each standalone script.
-- See `development/progress.log` for a changelog and project history.
-
-## Intended Audience
-- Quantitative researchers and traders
-- Educators and students in finance or data science
-- Developers interested in creative market simulation and visualization
-
-## License
-This project is open source and available under the MIT License.
+Logs are saved to `

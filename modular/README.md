@@ -15,6 +15,7 @@ This folder contains the modular components of the Aerotrader flight simulation 
 ## Core Module Descriptions
 
 - **flight_sim_engine.py**: Main simulation engine. Handles CLI, loads data, runs the simulation, and writes logs.
+- **flight_ops_core.py**: Orchestrator for cross-domain simulation. Manages event triggers, state synchronization, and telemetry/history for market, aircraft, and traffic domains. Enables multi-domain and event-driven simulation scenarios.
 - **blackbox.py**: Handles writing flight logs in markdown and JSON formats.
 - **candle_interpreter.py**: Analyzes candle shapes and classifies them into flight phases (Thrust, Stall, Go-around, Hover).
 - **data_loader.py**: Loads and preprocesses stock and option data from CSV or other sources.
