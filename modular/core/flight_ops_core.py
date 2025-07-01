@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 import random
+import json
 
 # --- Shared Schema: FlightState ---
 @dataclass
@@ -173,6 +174,12 @@ class FlightOpsCore:
         else:
             f.status_flags["stall"] = False
 
+    def export_results(self, out_path):
+        # Export all flight objects as dicts (including telemetry)
+        with open(out_path, 'w', encoding='utf-8') as f:
+            json.dump([f.__dict__ for f in self.flight_objects], f, ensure_ascii=False, indent=2)
+        print(f"Exported results to {out_path}")
+
 # --- Example Entry Script ---
 if __name__ == "__main__":
     config = {
@@ -196,4 +203,6 @@ if __name__ == "__main__":
         ops.update()
         print(f"\nTick {tick+1}:")
         for f in ops.flight_objects:
-            print(f) 
+            print(f)
+    # Export results for charting
+    ops.export_results("modular/logs/results.json") 
