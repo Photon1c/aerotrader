@@ -3,6 +3,14 @@ from typing import List, Optional, Dict
 import random
 import json
 
+from .synchronization import (
+    compute_synchronization,
+    SynchronizationResult,
+    RegimeLabel,
+    ExecutionType,
+)
+
+
 # --- Shared Schema: FlightState ---
 @dataclass
 class FlightState:
@@ -11,41 +19,71 @@ class FlightState:
     symbol: Optional[str] = None  # SPY, TSLA, or ICAO
     origin: str = "UNKNOWN"
     destination: str = "UNKNOWN"
-    
+
     price: float = 0.0
     altitude: float = 0.0
     velocity: float = 0.0
     heading: float = 0.0
     phase: str = "Ground_Taxi"
-    
+
     position: Optional[Dict[str, float]] = field(default_factory=dict)
     telemetry: List[Dict] = field(default_factory=list)
-    status_flags: Dict[str, bool] = field(default_factory=lambda: {"stall": False, "turbulence": False})
+    status_flags: Dict[str, bool] = field(
+        default_factory=lambda: {"stall": False, "turbulence": False}
+    )
+    sync: Optional[Dict] = field(
+        default_factory=lambda: SynchronizationResult().to_dict()
+    )
+
 
 # --- Mocked external functions for demonstration ---
 def generate_market_flights(symbol_list):
     # Returns a list of FlightState objects for market flights
     return [
-        FlightState(id=f"MKT_{sym}", mode="market", symbol=sym, price=100.0 + i*10, altitude=0.0, velocity=0.0)
+        FlightState(
+            id=f"MKT_{sym}",
+            mode="market",
+            symbol=sym,
+            price=100.0 + i * 10,
+            altitude=0.0,
+            velocity=0.0,
+        )
         for i, sym in enumerate(symbol_list)
     ]
+
 
 def spawn_aircraft(flight_plans):
     # Returns a list of FlightState objects for aircraft
     return [
-        FlightState(id=plan["id"], mode="aircraft", origin=plan["origin"], destination=plan["dest"], altitude=1000.0, velocity=250.0)
+        FlightState(
+            id=plan["id"],
+            mode="aircraft",
+            origin=plan["origin"],
+            destination=plan["dest"],
+            altitude=1000.0,
+            velocity=250.0,
+        )
         for plan in flight_plans
     ]
+
 
 def generate_flight_schedule(airport_layout):
     # Returns a list of FlightState objects for traffic
     return [
-        FlightState(id=f"TRF_{airport_layout}_1", mode="traffic", origin=airport_layout, destination="KSEA", altitude=0.0, velocity=0.0)
+        FlightState(
+            id=f"TRF_{airport_layout}_1",
+            mode="traffic",
+            origin=airport_layout,
+            destination="KSEA",
+            altitude=0.0,
+            velocity=0.0,
+        )
     ]
+
 
 def update_market_flight(f: FlightState):
     # Simulate random walk for price
-    if not hasattr(f, 'tick'):
+    if not hasattr(f, "tick"):
         f.tick = 0
     f.tick += 1
     f.price += random.uniform(-1.5, 1.0)  # allow price to drop below 100
@@ -58,6 +96,7 @@ def update_market_flight(f: FlightState):
     else:
         f.status_flags["stall"] = False
 
+
 def update_physical_flight(f: FlightState):
     # Simple mock: climb, then cruise
     if f.altitude < 10000:
@@ -67,18 +106,20 @@ def update_physical_flight(f: FlightState):
         f.phase = "Cruise"
     f.velocity = 250.0
 
+
 def update_traffic_logic(f: FlightState):
     # Simple mock: traffic moves
-    if not hasattr(f, 'tick'):
+    if not hasattr(f, "tick"):
         f.tick = 0
     f.tick += 1
     if f.tick == 4:
         f.phase = "GoAround"
-    elif hasattr(f, 'cleared_to_land') and f.cleared_to_land:
+    elif hasattr(f, "cleared_to_land") and f.cleared_to_land:
         f.phase = "ClearedToLand"
     else:
         f.phase = "Taxi"
     f.velocity = 20.0
+
 
 # --- Core Engine Logic ---
 class FlightOpsCore:
@@ -97,18 +138,53 @@ class FlightOpsCore:
     def load_airtraffic(self, airport_layout):
         self.flight_objects += generate_flight_schedule(airport_layout)
 
+    def compute_synchronization_for(self, f: FlightState) -> Dict:
+        if f.mode != "market":
+            return SynchronizationResult().to_dict()
+
+        history = f.telemetry
+        if len(history) < 2:
+            return SynchronizationResult().to_dict()
+
+        prices = [h.get("price", f.price) for h in history]
+        price_disp = prices[-1] - prices[-2] if len(prices) >= 2 else 0.0
+
+        vol_ratios = [h.get("volume_ratio", 1.0) for h in history]
+        vol_spike = vol_ratios[-1] if vol_ratios else 1.0
+
+        spreads = [h.get("spread", 0.0) for h in history]
+        spread = spreads[-1] if spreads else 0.0
+
+        vols = [h.get("volatility", 0.0) for h in history]
+        vol_exp = abs(vols[-1] - vols[-2]) if len(vols) >= 2 else 0.0
+
+        result = compute_synchronization(
+            price_displacement=price_disp,
+            volume_spike_ratio=vol_spike,
+            spread_widening_ratio=spread,
+            volatility_expansion=vol_exp,
+            cvd_acceleration=0.0,
+            prior_cruise_deviation=abs(price_disp) * 0.5,
+        )
+        return result.to_dict()
+
     def update(self):
         for f in self.flight_objects:
             self._update_flight(f)
+            # --- Synchronization computation for market flights ---
+            if f.mode == "market" and hasattr(self, "timestep") and self.timestep > 0:
+                f.sync = self.compute_synchronization_for(f)
             # --- Telemetry/history buffer ---
-            # Store a snapshot of the last 10 ticks
             snap = {
-                'tick': self.timestep,
-                'altitude': f.altitude,
-                'velocity': f.velocity,
-                'phase': f.phase,
-                'status_flags': dict(f.status_flags),
-                'price': f.price,
+                "tick": self.timestep,
+                "altitude": f.altitude,
+                "velocity": f.velocity,
+                "phase": f.phase,
+                "status_flags": dict(f.status_flags),
+                "price": f.price,
+                "volume_ratio": random.uniform(0.5, 3.0) if f.mode == "market" else 1.0,
+                "spread": random.uniform(0.0, 0.5) if f.mode == "market" else 0.0,
+                "volatility": random.uniform(0.0, 2.0) if f.mode == "market" else 0.0,
             }
             f.telemetry.append(snap)
             if len(f.telemetry) > 10:
@@ -125,39 +201,45 @@ class FlightOpsCore:
         if market_flights and aircraft_flights:
             for i, mkt in enumerate(market_flights):
                 if mkt.status_flags.get("stall"):
-                    idx = min(i, len(aircraft_flights)-1)
+                    idx = min(i, len(aircraft_flights) - 1)
                     ac = aircraft_flights[idx]
                     if not ac.status_flags.get("stall"):
                         ac.status_flags["stall"] = True
-                        print(f"[TRIGGER] Market flight {mkt.id} is stalled. Aircraft {ac.id} set to stall.")
+                        print(
+                            f"[TRIGGER] Market flight {mkt.id} is stalled. Aircraft {ac.id} set to stall."
+                        )
         # 2. Traffic GoAround triggers aircraft holding
         if traffic_flights and aircraft_flights:
             for i, trf in enumerate(traffic_flights):
                 if trf.phase == "GoAround":
-                    idx = min(i, len(aircraft_flights)-1)
+                    idx = min(i, len(aircraft_flights) - 1)
                     ac = aircraft_flights[idx]
                     if ac.phase != "Holding":
                         ac.phase = "Holding"
                         # Track how long in holding
                         ac.holding_ticks = 1
-                        print(f"[TRIGGER] Traffic flight {trf.id} in GoAround. Aircraft {ac.id} set to Holding phase.")
-                    elif hasattr(ac, 'holding_ticks'):
+                        print(
+                            f"[TRIGGER] Traffic flight {trf.id} in GoAround. Aircraft {ac.id} set to Holding phase."
+                        )
+                    elif hasattr(ac, "holding_ticks"):
                         ac.holding_ticks += 1
                 else:
                     # Reset holding_ticks if not in holding
-                    idx = min(i, len(aircraft_flights)-1)
+                    idx = min(i, len(aircraft_flights) - 1)
                     ac = aircraft_flights[idx]
-                    if hasattr(ac, 'holding_ticks'):
+                    if hasattr(ac, "holding_ticks"):
                         del ac.holding_ticks
         # 3. Aircraft in Holding >2 ticks triggers traffic ClearedToLand
         if aircraft_flights and traffic_flights:
             for i, ac in enumerate(aircraft_flights):
-                if hasattr(ac, 'holding_ticks') and ac.holding_ticks > 2:
-                    idx = min(i, len(traffic_flights)-1)
+                if hasattr(ac, "holding_ticks") and ac.holding_ticks > 2:
+                    idx = min(i, len(traffic_flights) - 1)
                     trf = traffic_flights[idx]
-                    if not hasattr(trf, 'cleared_to_land') or not trf.cleared_to_land:
+                    if not hasattr(trf, "cleared_to_land") or not trf.cleared_to_land:
                         trf.cleared_to_land = True
-                        print(f"[TRIGGER] Aircraft {ac.id} held >2 ticks. Traffic {trf.id} set to ClearedToLand.")
+                        print(
+                            f"[TRIGGER] Aircraft {ac.id} held >2 ticks. Traffic {trf.id} set to ClearedToLand."
+                        )
 
     def _update_flight(self, f: FlightState):
         # Route to appropriate logic engine
@@ -176,9 +258,15 @@ class FlightOpsCore:
 
     def export_results(self, out_path):
         # Export all flight objects as dicts (including telemetry)
-        with open(out_path, 'w', encoding='utf-8') as f:
-            json.dump([f.__dict__ for f in self.flight_objects], f, ensure_ascii=False, indent=2)
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(
+                [f.__dict__ for f in self.flight_objects],
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
         print(f"Exported results to {out_path}")
+
 
 # --- Example Entry Script ---
 if __name__ == "__main__":
@@ -201,8 +289,8 @@ if __name__ == "__main__":
 
     for tick in range(5):
         ops.update()
-        print(f"\nTick {tick+1}:")
+        print(f"\nTick {tick + 1}:")
         for f in ops.flight_objects:
             print(f)
     # Export results for charting
-    ops.export_results("modular/logs/results.json") 
+    ops.export_results("modular/logs/results.json")
