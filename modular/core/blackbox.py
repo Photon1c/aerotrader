@@ -123,7 +123,7 @@ def write_json_log(
                 "execution_type_label": sync_data.get(
                     "execution_type_label", "Distributed Execution"
                 ),
-                "regime_label": sync_data.get("regime_label", "DISTRIBUTED_CRUISE"),
+                "regime_label": sync_data.get("regime_label", "STABLE_CRUISE"),
                 "event_authorized": sync_data.get("event_authorized", False),
                 "event_authorization_confidence": sync_data.get(
                     "event_authorization_confidence", 0.0

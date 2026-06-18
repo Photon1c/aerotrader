@@ -11,12 +11,16 @@ class ExecutionType(Enum):
 
 
 class RegimeLabel(Enum):
-    DISTRIBUTED_CRUISE = "DISTRIBUTED_CRUISE"
-    ABSORBING_PRESSURE = "ABSORBING_PRESSURE"
-    PARTIAL_SYNCHRONIZATION = "PARTIAL_SYNCHRONIZATION"
-    COLLECTIVE_EXECUTION = "COLLECTIVE_EXECUTION"
+    STABLE_CRUISE = "STABLE_CRUISE"
+    PRESSURE_ACCUMULATION = "PRESSURE_ACCUMULATION"
+    STEP_CLIMB = "STEP_CLIMB"
+    STEP_DESCENT = "STEP_DESCENT"
+    ALTITUDE_TRANSITION = "ALTITUDE_TRANSITION"
+    COLLECTIVE_EXECUTION_MANEUVER = "COLLECTIVE_EXECUTION_MANEUVER"
     REFLEXIVE_CASCADE = "REFLEXIVE_CASCADE"
-    POST_RELEASE_REBALANCE = "POST_RELEASE_REBALANCE"
+    FAILED_RESTORATION = "FAILED_RESTORATION"
+    FLIGHT_LEVEL_STABILIZATION = "FLIGHT_LEVEL_STABILIZATION"
+    PERSISTENCE_DECAY = "PERSISTENCE_DECAY"
 
 
 EXECUTION_TYPE_LABELS = {
@@ -26,9 +30,33 @@ EXECUTION_TYPE_LABELS = {
 }
 
 REGIME_S_C_MAP = [
-    (0.00, 0.30, [RegimeLabel.DISTRIBUTED_CRUISE, RegimeLabel.ABSORBING_PRESSURE]),
-    (0.30, 0.65, [RegimeLabel.PARTIAL_SYNCHRONIZATION]),
-    (0.65, 1.00, [RegimeLabel.COLLECTIVE_EXECUTION, RegimeLabel.REFLEXIVE_CASCADE]),
+    (
+        0.00,
+        0.30,
+        [
+            RegimeLabel.STABLE_CRUISE,
+            RegimeLabel.PRESSURE_ACCUMULATION,
+            RegimeLabel.PERSISTENCE_DECAY,
+        ],
+    ),
+    (
+        0.30,
+        0.65,
+        [
+            RegimeLabel.STEP_CLIMB,
+            RegimeLabel.STEP_DESCENT,
+            RegimeLabel.ALTITUDE_TRANSITION,
+        ],
+    ),
+    (
+        0.65,
+        1.00,
+        [
+            RegimeLabel.COLLECTIVE_EXECUTION_MANEUVER,
+            RegimeLabel.REFLEXIVE_CASCADE,
+            RegimeLabel.FAILED_RESTORATION,
+        ],
+    ),
 ]
 
 
@@ -45,7 +73,7 @@ class SynchronizationResult:
     synchronization_coefficient: float = 0.0
     execution_type: str = "Type I"
     execution_type_label: str = "Distributed Execution"
-    regime_label: str = "DISTRIBUTED_CRUISE"
+    regime_label: str = "STABLE_CRUISE"
     event_authorized: bool = False
     event_authorization_confidence: float = 0.0
     absorption_capacity: float = 1.0
@@ -90,19 +118,33 @@ def _normalize(
 
 
 def _detect_regime(
-    sc: float, reflexive: bool, absorbing: bool, post_release: bool
+    sc: float,
+    reflexive: bool,
+    absorbing: bool,
+    post_release: bool,
+    price_displacement: float = 0.0,
+    prior_cruise_deviation: float = 0.0,
+    valve_saturation: float = 0.0,
 ) -> str:
     if post_release:
-        return RegimeLabel.POST_RELEASE_REBALANCE.value
+        if valve_saturation > 0.7:
+            return RegimeLabel.FAILED_RESTORATION.value
+        return RegimeLabel.FLIGHT_LEVEL_STABILIZATION.value
     if reflexive:
         return RegimeLabel.REFLEXIVE_CASCADE.value
     if sc >= 0.65:
-        return RegimeLabel.COLLECTIVE_EXECUTION.value
+        return RegimeLabel.COLLECTIVE_EXECUTION_MANEUVER.value
     if sc >= 0.30:
-        return RegimeLabel.PARTIAL_SYNCHRONIZATION.value
+        if abs(price_displacement) < 0.3:
+            return RegimeLabel.ALTITUDE_TRANSITION.value
+        if price_displacement > 0:
+            return RegimeLabel.STEP_CLIMB.value
+        return RegimeLabel.STEP_DESCENT.value
     if absorbing:
-        return RegimeLabel.ABSORBING_PRESSURE.value
-    return RegimeLabel.DISTRIBUTED_CRUISE.value
+        return RegimeLabel.PRESSURE_ACCUMULATION.value
+    if prior_cruise_deviation > 0.3 and sc > 0.10:
+        return RegimeLabel.PERSISTENCE_DECAY.value
+    return RegimeLabel.STABLE_CRUISE.value
 
 
 def _compute_absorption(
@@ -205,7 +247,15 @@ def compute_synchronization(
     else:
         exec_type = ExecutionType.TYPE_I
 
-    regime = _detect_regime(sc, reflexive, hidden_flow, force_post_release)
+    regime = _detect_regime(
+        sc,
+        reflexive,
+        hidden_flow,
+        force_post_release,
+        price_displacement=price_displacement,
+        prior_cruise_deviation=prior_cruise_deviation,
+        valve_saturation=valve_saturation,
+    )
 
     observed_dom_confidence = max(0.0, 1.0 - queue_pressure * 0.5)
 
@@ -263,16 +313,18 @@ def _generate_diagnostics(
         notes.append(
             "Event appears to have synchronized participants — authorization signal detected."
         )
-    if sc < 0.3 and regime == RegimeLabel.DISTRIBUTED_CRUISE.value:
+    if sc < 0.3 and regime == RegimeLabel.STABLE_CRUISE.value:
         notes.append(
             "Movement looks like ordinary trend — no synchronization detected."
         )
     elif sc >= 0.65:
         notes.append(
-            "Movement resembles pressure release — collective or reflexive execution."
+            "Movement resembles pressure release — collective execution maneuver or reflexive cascade."
         )
     if force_post_release:
-        notes.append("Post-event bounce suggests valve reopening / rebalancing phase.")
+        notes.append(
+            "Post-event bounce — flight-level stabilization or failed restoration detected."
+        )
     if valve_saturation > 0.7:
         notes.append("Valve saturation high — absorption capacity nearing limit.")
     if price_bounded_while_cvd_trends:

@@ -32,7 +32,7 @@ class CrowFlockState:
     roost_pressure: float = 0.0
     disturbance_proximity: float = float("inf")
     flock_execution_type: str = FlockExecutionType.SCATTERED_FORAGING
-    regime_label: str = RegimeLabel.DISTRIBUTED_CRUISE.value
+    regime_label: str = RegimeLabel.STABLE_CRUISE.value
     diagnostics: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict:

@@ -79,7 +79,7 @@ python tests/test_synchronization.py
   "synchronization_coefficient": 0.1583,
   "execution_type": "Type I",
   "execution_type_label": "Distributed Execution",
-  "regime_label": "DISTRIBUTED_CRUISE",
+  "regime_label": "STABLE_CRUISE",
   "event_authorized": false,
   "valve_saturation_score": 0.0,
   "queue_pressure": 0.0,
@@ -99,12 +99,16 @@ python tests/test_synchronization.py
 ### Regime Labels
 | Label | S_c Range | Meaning |
 |-------|-----------|---------|
-| DISTRIBUTED_CRUISE | 0.00–0.30 | Normal, no synchronization |
-| ABSORBING_PRESSURE | 0.00–0.30 | CVD trends while price bounded |
-| PARTIAL_SYNCHRONIZATION | 0.30–0.65 | Moderate alignment |
-| COLLECTIVE_EXECUTION | 0.65–1.00 | Full synchronization |
+| STABLE_CRUISE | 0.00–0.30 | Normal, no synchronization |
+| PRESSURE_ACCUMULATION | 0.00–0.30 | CVD trends while price bounded |
+| PERSISTENCE_DECAY | 0.10–0.30 | Residual sync dissipating |
+| STEP_CLIMB | 0.30–0.65 | Upward flight-level transition (positive displacement) |
+| STEP_DESCENT | 0.30–0.65 | Downward flight-level transition (negative displacement) |
+| ALTITUDE_TRANSITION | 0.30–0.65 | Active move between bands (bounded displacement) |
+| COLLECTIVE_EXECUTION_MANEUVER | 0.65–1.00 | Synchronized collective move |
 | REFLEXIVE_CASCADE | 0.65–1.00 | Self-reinforcing cascade |
-| POST_RELEASE_REBALANCE | any | Post-event valve reopening |
+| FLIGHT_LEVEL_STABILIZATION | any | Post-CEM equilibrium establishment |
+| FAILED_RESTORATION | any | Stabilization attempt failed, pressure persists |
 
 ### Crow Flock Bridge (`crow_simulator.py`)
 | Market Concept | Crow Equivalent |

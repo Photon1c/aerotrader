@@ -32,8 +32,8 @@ def test_type_i_distributed_execution():
         f"Expected Type I, got {result.execution_type}"
     )
     assert result.regime_label in (
-        RegimeLabel.DISTRIBUTED_CRUISE.value,
-        RegimeLabel.ABSORBING_PRESSURE.value,
+        RegimeLabel.STABLE_CRUISE.value,
+        RegimeLabel.PRESSURE_ACCUMULATION.value,
     ), f"Unexpected regime: {result.regime_label}"
     assert not result.event_authorized
     assert not result.hidden_flow_suspected
@@ -57,7 +57,7 @@ def test_type_i_edge_cruise_boundary():
     assert result.synchronization_coefficient < 0.01, (
         f"S_c too high: {result.synchronization_coefficient}"
     )
-    assert result.regime_label == RegimeLabel.DISTRIBUTED_CRUISE.value
+    assert result.regime_label == RegimeLabel.STABLE_CRUISE.value
     assert result.execution_type == "Type I"
     print(
         f"[PASS] Type I edge: S_c={result.synchronization_coefficient:.4f}, "
@@ -130,7 +130,7 @@ def test_type_iii_reflexive_cascade():
     )
     assert result.regime_label in (
         RegimeLabel.REFLEXIVE_CASCADE.value,
-        RegimeLabel.COLLECTIVE_EXECUTION.value,
+        RegimeLabel.COLLECTIVE_EXECUTION_MANEUVER.value,
     ), f"Unexpected regime: {result.regime_label}"
     assert result.reflexive_cascade_risk > 0.3, (
         f"Expected reflexive_cascade_risk > 0.3, got {result.reflexive_cascade_risk}"
@@ -177,8 +177,8 @@ def test_absorption_phase_detection():
     assert result.hidden_flow_suspected, (
         "Expected hidden_flow_suspected=True when CVD trends while price bounded"
     )
-    assert result.regime_label == RegimeLabel.ABSORBING_PRESSURE.value, (
-        f"Expected ABSORBING_PRESSURE, got {result.regime_label}"
+    assert result.regime_label == RegimeLabel.PRESSURE_ACCUMULATION.value, (
+        f"Expected PRESSURE_ACCUMULATION, got {result.regime_label}"
     )
     assert result.absorption_capacity < 1.0
     print(
@@ -194,8 +194,8 @@ def test_post_release_rebalance():
         prior_cruise_deviation=0.0,
         force_post_release=True,
     )
-    assert result.regime_label == RegimeLabel.POST_RELEASE_REBALANCE.value, (
-        f"Expected POST_RELEASE_REBALANCE, got {result.regime_label}"
+    assert result.regime_label == RegimeLabel.FLIGHT_LEVEL_STABILIZATION.value, (
+        f"Expected FLIGHT_LEVEL_STABILIZATION, got {result.regime_label}"
     )
     print(f"[PASS] Post-release: Regime={result.regime_label}")
 
@@ -333,7 +333,7 @@ def test_execution_type_ii_partial_alignment():
         f"Expected partial alignment (0.30-0.65), got {result.synchronization_coefficient}"
     )
     assert result.execution_type == "Type II"
-    assert result.regime_label == RegimeLabel.PARTIAL_SYNCHRONIZATION.value
+    assert result.regime_label == RegimeLabel.STEP_CLIMB.value
     assert result.event_authorized
     print(
         f"[PASS] Type II partial: S_c={result.synchronization_coefficient:.4f}, "
@@ -385,7 +385,7 @@ def test_synchronization_result_defaults():
     r = SynchronizationResult()
     assert r.synchronization_coefficient == 0.0
     assert r.execution_type == "Type I"
-    assert r.regime_label == "DISTRIBUTED_CRUISE"
+    assert r.regime_label == "STABLE_CRUISE"
     assert not r.event_authorized
     assert r.absorption_capacity == 1.0
     assert len(r.diagnostics) == 0
