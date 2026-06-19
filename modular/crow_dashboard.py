@@ -554,7 +554,7 @@ class RoostCluster:
                     pts.append((int(c.x), int(c.y)))
         if len(pts) < 2:
             return
-            hull = RoostCluster.convex_hull(pts) if len(pts) > 2 else pts
+        hull = RoostCluster.convex_hull(pts) if len(pts) > 2 else pts
         if len(hull) > 2:
             pygame.draw.polygon(screen, (30, 30, 60), hull, 1)
         cx = int(self.center_x)
