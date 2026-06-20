@@ -61,6 +61,16 @@ SIGNAL_ROOST = "roost"
 SIGNAL_SCOUT = "scout"
 SIGNAL_AFFILIATE = "affiliate"
 
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GRAY = (140, 140, 140)
+DARK_GRAY = (30, 30, 30)
+GREEN = (60, 200, 80)
+RED = (220, 60, 60)
+AMBER = (240, 180, 40)
+BLUE = (60, 140, 240)
+CYAN = (60, 220, 220)
+
 
 @dataclass
 class Signal:
