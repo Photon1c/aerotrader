@@ -9,7 +9,13 @@ from typing import List, Tuple, Optional
 
 WIDTH, HEIGHT = 1280, 800
 FPS = 60
-DAY_LENGTH = 3600
+DAY_LENGTH = (
+    3600  # ticks per in-game day (=1 real minute at 60fps, ~24 sim-seconds per tick)
+)
+
+# Spatial scale: map represents approx. 40 × 25 miles (Puget Sound region)
+# 1 pixel ≈ 165 ft ≈ 50 m
+# Crow commute 10-40 mi → 320-1280 px radius
 
 BIOME_WATER_DEEP = 0
 BIOME_WATER_SHALLOW = 1
@@ -300,7 +306,7 @@ class Crow:
         self.affiliates: List[int] = []
 
         self.age = 0
-        self.max_age = random.randint(18000, 36000)
+        self.max_age = random.randint(72000, 144000)
         self.energy = random.uniform(0.6, 1.0)
         self.hunger = 0.0
         self.food_found = 0
@@ -312,6 +318,9 @@ class Crow:
         self.caw_cooldown = random.randint(120, 400)
         self.mating_cooldown = 0
         self.parent_id = parent_id
+        self.bond_partner: Optional[int] = None
+        self.has_bred_this_season = False
+        self.home_roost: Optional[int] = None
 
         if mode == "financial":
             TICKERS = [
@@ -475,11 +484,11 @@ class Crow:
         if self.is_asleep:
             self.vx *= 0.9
             self.vy *= 0.9
-            self.energy = min(1.0, self.energy + 0.003)
-            self.hunger = max(0.0, self.hunger - 0.001)
+            self.energy = min(1.0, self.energy + 0.00010)
+            self.hunger = max(0.0, self.hunger - 0.00008)
         else:
-            self.energy = max(0.0, self.energy - 0.0003)
-            self.hunger = min(1.0, self.hunger + 0.0004)
+            self.energy = max(0.0, self.energy - 0.00035)
+            self.hunger = min(1.0, self.hunger + 0.00030)
 
         self.vx += self.ax
         self.vy += self.ay
@@ -758,6 +767,7 @@ class Ecosystem:
         self.night_factor = 0.0
         self.birth_count = 0
         self.death_count = 0
+        self._last_birth_day = -1
         Crow._next_id = 0
 
         for _ in range(5):
@@ -775,7 +785,7 @@ class Ecosystem:
             c = Crow(x, y, mode, self.terrain)
             self.crows.append(c)
 
-        for _ in range(25):
+        for _ in range(50):
             pos = self.terrain.food_spawn_position(self.rng)
             if pos:
                 self.foods.append(
@@ -818,19 +828,26 @@ class Ecosystem:
         self._handle_birth_death()
 
         if self.mode == "natural":
-            if self.tick % 90 == 0:
+            if self.tick % 360 == 0:
                 fx, fy, fkind = self.terrain.food_spawn_position(self.rng)
-                self.foods.append(FoodSource(fx, fy, random.uniform(0.3, 1.0), fkind))
+                self.foods.append(FoodSource(fx, fy, random.uniform(0.5, 1.5), fkind))
 
+        decay = []
         for f in self.foods:
             if f.depleted:
                 f.regrow_timer -= 1
                 if f.regrow_timer <= 0:
-                    f.amount = random.uniform(0.3, 1.0)
+                    f.amount = random.uniform(0.5, 1.5)
                     f.depleted = False
                     b = self.terrain.biome_at(f.x, f.y)
                     candidates = BIOME_FOOD.get(b, ["seed"])
                     f.kind = self.rng.choice(candidates)
+            else:
+                f.regrow_timer -= 1
+                if f.regrow_timer < -72000:
+                    decay.append(f)
+        for f in decay:
+            self.foods.remove(f)
 
     def _update_density(self):
         for gy in range(len(self.density_grid)):
@@ -867,44 +884,112 @@ class Ecosystem:
         if self.mode != "natural":
             return
 
-        food_density = sum(1 for f in self.foods if not f.depleted) / max(
-            len(self.crows), 1
-        )
-        if food_density < 0.3:
-            return
+        active_food = sum(1 for f in self.foods if not f.depleted)
+        pop = len(self.crows)
+        food_density = active_food / max(pop, 1)
 
-        mating_pairs = []
-        for i, a in enumerate(self.crows):
-            if a.is_asleep or a.mating_cooldown > 0 or a.energy < 0.6:
-                continue
-            for b in self.crows[i + 1 :]:
-                if b.is_asleep or b.mating_cooldown > 0 or b.energy < 0.6:
+        # Skip culling during first 5 days to let population stabilize
+        if self.tick > 5 * DAY_LENGTH:
+            max_crows = 10 + int(active_food * 1.0)
+            if pop > max_crows:
+                sorted_crows = sorted(self.crows, key=lambda c: c.energy)
+                for c in sorted_crows[: max(0, pop - max_crows)]:
+                    c.energy = -0.01
+
+        # Pair bonding: nearby unpaired crows form bonds at dawn
+        day_progress = (self.tick % DAY_LENGTH) / DAY_LENGTH
+        if day_progress < 0.01 and food_density > 0.25:
+            unpaired = [
+                c
+                for c in self.crows
+                if c.bond_partner is None and c.energy > 0.5 and c.age > 5000
+            ]
+            for i, a in enumerate(unpaired):
+                if a.bond_partner is not None:
                     continue
-                if math.hypot(a.x - b.x, a.y - b.y) < 35 and self.rng.random() < 0.001:
-                    mating_pairs.append((a, b))
-                    a.mating_cooldown = 600 + self.rng.randint(0, 300)
-                    b.mating_cooldown = 600 + self.rng.randint(0, 300)
+                for b in unpaired[i + 1 :]:
+                    if b.bond_partner is not None:
+                        continue
+                    if math.hypot(a.x - b.x, a.y - b.y) < 60:
+                        a.bond_partner = b.id
+                        b.bond_partner = a.id
+                        break
 
-        for parent_a, parent_b in mating_pairs:
-            x, y = self.terrain.spawn_position(self.rng)
-            if x is None:
-                continue
-            chick = Crow(x, y, self.mode, self.terrain, parent_id=parent_a.id)
-            chick.max_speed = (
-                (parent_a.max_speed + parent_b.max_speed) / 2 * random.uniform(0.9, 1.1)
-            )
-            chick.size = (parent_a.size + parent_b.size) / 2 * random.uniform(0.8, 1.2)
-            chick.energy = 0.8
-            if self.rng.random() < 0.3:
-                chick.is_scout = parent_a.is_scout or parent_b.is_scout
-            self.crows.append(chick)
-            self.birth_count += 1
+        # Seasonal breeding: at most once per day during breeding season (days 20-60)
+        season_open = 20 * DAY_LENGTH
+        season_close = 60 * DAY_LENGTH
+        in_season = season_open <= self.tick < season_close
+        is_dawn = 0.0 < day_progress < 0.02
 
-        max_crows = 20 + int(sum(1 for f in self.foods if not f.depleted) * 1.5)
-        if len(self.crows) > max_crows:
-            sorted_crows = sorted(self.crows, key=lambda c: c.energy)
-            for c in sorted_crows[: max(0, len(self.crows) - max_crows)]:
-                c.energy = -0.01
+        today = self.tick // DAY_LENGTH
+        if (
+            in_season
+            and is_dawn
+            and food_density > 0.3
+            and today != self._last_birth_day
+        ):
+            breeding_pairs = [
+                (a, self._crow_by_id(a.bond_partner))
+                for a in self.crows
+                if a.bond_partner is not None
+                and not a.has_bred_this_season
+                and a.energy > 0.6
+                and a.age > 18000
+            ]
+            breeding_pairs = [
+                (a, b)
+                for a, b in breeding_pairs
+                if b is not None
+                and not b.has_bred_this_season
+                and b.energy > 0.6
+                and b.age > 18000
+            ]
+
+            for parent_a, parent_b in breeding_pairs[:1]:
+                clutch = self.rng.randint(3, 6)
+                survivors = 0
+                for _ in range(clutch):
+                    if self.rng.random() < 0.25:
+                        survivors += 1
+                survivors = max(1, min(2, survivors))
+
+                for _ in range(survivors):
+                    x, y = self.terrain.spawn_position(self.rng)
+                    if x is None:
+                        continue
+                    chick = Crow(x, y, self.mode, self.terrain, parent_id=parent_a.id)
+                    chick.max_speed = (
+                        (parent_a.max_speed + parent_b.max_speed)
+                        / 2
+                        * random.uniform(0.9, 1.1)
+                    )
+                    chick.size = (
+                        (parent_a.size + parent_b.size) / 2 * random.uniform(0.8, 1.2)
+                    )
+                    chick.energy = 0.5
+                    chick.hunger = 0.0
+                    if self.rng.random() < 0.3:
+                        chick.is_scout = parent_a.is_scout or parent_b.is_scout
+                    self.crows.append(chick)
+                    self.birth_count += 1
+
+                parent_a.has_bred_this_season = True
+                parent_b.has_bred_this_season = True
+                self._last_birth_day = today
+
+        # Reset has_bred at start of next season
+        if (
+            0 < day_progress < 0.01
+            and self.tick % (60 * DAY_LENGTH) < DAY_LENGTH * 0.02
+        ):
+            for c in self.crows:
+                c.has_bred_this_season = False
+
+    def _crow_by_id(self, cid: int):
+        for c in self.crows:
+            if c.id == cid:
+                return c
+        return None
 
     def _is_night(self) -> bool:
         return self.night_factor < -0.3
@@ -920,30 +1005,54 @@ class Ecosystem:
 
     def _update_natural(self):
         is_night = self._is_night()
+        is_dusk = self._is_dusk()
+        is_dawn_time = self._is_dawn()
         for c in self.crows:
             if c.is_dead:
                 continue
+
             if is_night:
-                c.is_asleep = c.energy < 0.85
+                c.is_asleep = c.energy < 0.95
                 if c.is_asleep:
-                    if c.roost_id is None:
+                    if c.home_roost is not None and c.home_roost < len(self.perches):
+                        p = self.perches[c.home_roost]
+                    elif c.roost_id is None:
                         c.roost_id = min(
                             range(len(self.perches)),
                             key=lambda i: math.hypot(
                                 c.x - self.perches[i].x, c.y - self.perches[i].y
                             ),
                         )
-                    p = (
-                        self.perches[c.roost_id]
-                        if c.roost_id < len(self.perches)
-                        else self.perches[0]
-                    )
+                        c.home_roost = c.roost_id
+                        p = self.perches[c.roost_id]
+                    else:
+                        p = (
+                            self.perches[c.roost_id]
+                            if c.roost_id < len(self.perches)
+                            else self.perches[0]
+                        )
                     c.seek(p.x, p.y - p.height * 0.3, 1.2)
                     c.max_speed = 1.5
                 continue
             else:
                 c.is_asleep = False
-                c.max_speed = random.uniform(2.5, 4.5)
+
+            if is_dusk:
+                c.max_speed = 1.0
+                c.seek(
+                    self.perches[c.home_roost].x
+                    if c.home_roost is not None and c.home_roost < len(self.perches)
+                    else c.x,
+                    self.perches[c.home_roost].y
+                    - self.perches[c.home_roost].height * 0.3
+                    if c.home_roost is not None and c.home_roost < len(self.perches)
+                    else c.y,
+                    0.4,
+                )
+                continue
+
+            base_speed = random.uniform(2.0, 3.5)
+            c.max_speed = base_speed
 
             c.separate(self.crows, 25, 1.8)
             c.align(self.crows, 60, 1.0)
@@ -968,26 +1077,35 @@ class Ecosystem:
                     self.signals.extend(c.signal_queue[-3:])
                 continue
 
-            if c.hunger > 0.3 or c.energy < 0.5:
+            if c.hunger > 0.25 or c.energy < 0.55:
                 active = [f for f in self.foods if not f.depleted]
                 if active:
                     closest = min(
                         active, key=lambda f: math.hypot(c.x - f.x, c.y - f.y)
                     )
                     d = math.hypot(c.x - closest.x, c.y - closest.y)
-                    if d < 300:
+                    if d < 500:
                         c.seek(closest.x, closest.y, 1.2 if d < 80 else 0.6)
                         if d < 12:
                             closest.amount -= 0.03
                             c.energy = min(1.0, c.energy + 0.12)
                             c.hunger = max(0.0, c.hunger - 0.15)
-                            c.food_found += 1
+
                             if closest.amount <= 0:
                                 closest.depleted = True
-                                closest.regrow_timer = 400 + random.randint(0, 300)
+                                closest.regrow_timer = 3600 + random.randint(0, 1800)
                             if c.emit_cooldown == 0 and c.signals_sent < 20:
                                 c.emit_signal(SIGNAL_FOOD, self.crows, 120)
                                 self.signals.extend(c.signal_queue[-2:])
+
+            if c.home_roost is not None and c.home_roost < len(self.perches):
+                p = self.perches[c.home_roost]
+                dx = c.x - p.x
+                dy = c.y - p.y
+                dist = math.hypot(dx, dy)
+                max_range = 500
+                if dist > max_range:
+                    c.seek(p.x, p.y, 0.3)
 
             for p in self.perches:
                 d = math.hypot(c.x - p.x, c.y - p.y)
@@ -997,21 +1115,28 @@ class Ecosystem:
                         c.vx *= 0.95
                         c.vy *= 0.95
 
-            if random.random() < 0.004:
+            if random.random() < 0.003:
                 c.seek(
-                    random.uniform(50, WIDTH - 50), random.uniform(50, HEIGHT - 50), 0.8
+                    random.uniform(50, WIDTH - 50), random.uniform(50, HEIGHT - 50), 0.6
                 )
 
-            if c.energy > 0.7 and random.random() < 0.002:
+            if c.bond_partner is not None and random.random() < 0.005:
+                partner = self._crow_by_id(c.bond_partner)
+                if partner is not None and not partner.is_dead:
+                    c.seek(partner.x, partner.y, 0.3)
+
+            if c.energy > 0.6 and c.bond_partner is None and random.random() < 0.003:
                 nearby = [
                     o
                     for o in self.crows
                     if o is not c
                     and not o.is_dead
-                    and math.hypot(c.x - o.x, c.y - o.y) < 100
+                    and o.bond_partner is None
+                    and o.energy > 0.6
+                    and math.hypot(c.x - o.x, c.y - o.y) < 80
                 ]
                 if nearby and c.emit_cooldown == 0:
-                    c.emit_signal(SIGNAL_AFFILIATE, nearby[:3], 100)
+                    c.emit_signal(SIGNAL_AFFILIATE, nearby[:2], 100)
                     self.signals.extend(c.signal_queue[-1:])
 
     def _update_financial(self):
